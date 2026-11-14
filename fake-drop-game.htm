@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>غدر الكرات | Fake Drop</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;800;900&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Cairo', sans-serif;
+        }
+
+        body {
+            background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #game-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.85);
+            border-left: 2px solid rgba(255, 255, 255, 0.08);
+            border-right: 2px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+        }
+
+        /* Top HUD */
+        #hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 18px;
+            background: rgba(2, 6, 23, 0.9);
+            border-bottom: 2px solid rgba(56, 189, 248, 0.25);
+            z-index: 10;
+        }
+
+        .hud-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .hud-label {
+            font-size: 11px;
+            color: #94a3b8;
+        }
+
+        .hud-value {
+            font-size: 18px;
+            font-weight: 900;
+            color: #38bdf8;
+        }
+
+        #hearts-container {
+            font-size: 18px;
+            letter-spacing: 2px;
+        }
+
+        #progress-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: #1e293b;
+        }
+
+        #progress-bar-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
+            transition: width 0.2s ease;
+        }
+
+        /* Canvas Area */
+        #canvas-container {
+            position: relative;
+            flex: 1;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Taunt / Toast Message */
+        #taunt-box {
+            position: absolute;
+            top: 22%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: rgba(220, 38, 38, 0.92);
+            color: #fff;
+            padding: 8px 20px;
+            border-radius: 999px;
+            font-weight: 900;
+            font-size: 18px;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 25px rgba(220, 38, 38, 0.5);
+            z-index: 20;
+            white-space: nowrap;
+        }
+
+        #taunt-box.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.05);
+        }
+
+        #taunt-box.good {
+            background: rgba(16, 185, 129, 0.92);
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.5);
+        }
+
+        /* Bottom Buttons */
+        #controls {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            padding: 12px 12px 22px 12px;
+            background: rgba(2, 6, 23, 0.95);
+            border-top: 2px solid rgba(255, 255, 255, 0.08);
+            z-index: 10;
+            direction: ltr;
+        }
+
+        .catch-btn {
+            position: relative;
+            height: 74px;
+            border-radius: 16px;
+            border: 2px solid rgba(56, 189, 248, 0.4);
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            color: #e2e8f0;
+            font-size: 20px;
+            font-weight: 900;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 0 #020617, 0 8px 15px rgba(0,0,0,0.4);
+            transition: transform 0.05s, border-color 0.15s, background 0.15s;
+            touch-action: manipulation;
+        }
+
+        .catch-btn span.key-hint {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        .catch-btn:active, .catch-btn.active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #020617;
+            background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+            border-color: #7dd3fc;
+            color: #fff;
+        }
+
+        .catch-btn.fake-warn {
+            border-color: #ef4444 !important;
+            background: rgba(127, 29, 29, 0.45) !important;
+        }
+
+        /* Overlays (Menu / Stage Clear / Game Over) */
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.92);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 50;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .game-title {
+            font-size: 38px;
+            font-weight: 900;
+            background: linear-gradient(90deg, #38bdf8, #f43f5e, #fbbf24);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+        }
+
+        .game-subtitle {
+            color: #94a3b8;
+            font-size: 15px;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .legend-box {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 14px 16px;
+            width: 100%;
+            margin-bottom: 18px;
+            text-align: right;
+            font-size: 13px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            color: #e2e8f0;
+        }
+        .legend-item:last-child { margin-bottom: 0; }
+
+        .dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .stage-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+
+        .stage-btn {
+            padding: 12px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            background: rgba(15, 23, 42, 0.9);
+            color: #fff;
+            font-weight: 800;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .stage-btn:hover {
+            background: rgba(56, 189, 248, 0.2);
+            border-color: #38bdf8;
+            transform: translateY(-2px);
+        }
+
+        .stage-btn.endless {
+            grid-column: span 2;
+            background: linear-gradient(90deg, #7c3aed, #db2777);
+            border-color: #f472b6;
+        }
+
+        .rage-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            color: #fca5a5;
+            cursor: pointer;
+            background: rgba(127, 29, 29, 0.3);
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+
+        .primary-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 14px;
+            border: none;
+            background: linear-gradient(90deg, #0284c7, #2563eb);
+            color: #fff;
+            font-size: 18px;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+            margin-top: 8px;
+        }
+
+        .secondary-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: transparent;
+            color: #cbd5e1;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .shake {
+            animation: shakeAnim 0.28s ease-in-out;
+        }
+
+        @keyframes shakeAnim {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-10px); }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-8px); }
+            80% { transform: translateX(8px); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <!-- Top HUD -->
+    <div id="hud">
+        <div class="hud-item">
+            <span class="hud-label">المرحلة</span>
+            <span class="hud-value" id="hud-stage">1</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">السكور</span>
+            <span class="hud-value" id="hud-score">0 / 15</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">الأرواح</span>
+            <div id="hearts-container">❤️❤️❤️</div>
+        </div>
+    </div>
+    <div id="progress-bar-bg">
+        <div id="progress-bar-fill"></div>
+    </div>
+
+    <!-- Main Canvas -->
+    <div id="canvas-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="taunt-box">أكلت المقلب! 😂</div>
+    </div>
+
+    <!-- 4 Catch Buttons -->
+    <div id="controls">
+        <button class="catch-btn" data-lane="0" id="btn-0">
+            1
+            <span class="key-hint">[D / 1]</span>
+        </button>
+        <button class="catch-btn" data-lane="1" id="btn-1">
+            2
+            <span class="key-hint">[F / 2]</span>
+        </button>
+        <button class="catch-btn" data-lane="2" id="btn-2">
+            3
+            <span class="key-hint">[J / 3]</span>
+        </button>
+        <button class="catch-btn" data-lane="3" id="btn-3">
+            4
+            <span class="key-hint">[K / 4]</span>
+        </button>
+    </div>
+
+    <!-- Start / Stage Selection Menu -->
+    <div id="menu-overlay" class="overlay">
+        <div class="game-title">غدر الكرات</div>
+        <div class="game-subtitle">امسك الكرات عالخط.. بس إياك تبلع الـ <b>FAKE</b> أو تنخدع باللي بتغير مسارها!</div>
+
+        <div class="legend-box">
+            <div class="legend-item">
+                <span class="dot" style="background:#38bdf8; box-shadow:0 0 8px #38bdf8;"></span>
+                <span><b>كرة حقيقية:</b> اضغط الزر لما توصل للدائرة تحت.</span>
+            </div>
+            <div class="legend-item">
+                <span class="dot" style="background:#ef4444; box-shadow:0 0 8px #ef4444;"></span>
+                <span><b>كرة فيك (FAKE):</b> بتختفي بآخر لحظة! <b>ممنوع تضغط!</b></span>
+            </div>
+            <div class="legend-item">
+                <span class="dot" style="background:#a855f7; box-shadow:0 0 8px #a855f7;"></span>
+                <span><b>كرة غدارة (↪️):</b> بتقفز لخط تاني بآخر لحظة، الحقها!</span>
+            </div>
+            <div class="legend-item">
+                <span class="dot" style="background:#f59e0b; box-shadow:0 0 8px #f59e0b;"></span>
+                <span><b>كرة فرامل (🛑):</b> بتوقف شوي لتخدعك بعدين بتكمل نزول.</span>
+            </div>
+        </div>
+
+        <label class="rage-toggle">
+            <input type="checkbox" id="rage-mode-check">
+            <span>🔥 طور الجلطة (غلطة وحدة = إعادة المرحلة)</span>
+        </label>
+
+        <div class="stage-grid">
+            <button class="stage-btn" onclick="startStage(1)">المرحلة 1: إحماء وفخاخ</button>
+            <button class="stage-btn" onclick="startStage(2)">المرحلة 2: تغيير المسار</button>
+            <button class="stage-btn" onclick="startStage(3)">المرحلة 3: فرامل وغدر</button>
+            <button class="stage-btn" onclick="startStage(4)">المرحلة 4: فوضى الأعصاب</button>
+            <button class="stage-btn" onclick="startStage(5)">المرحلة 5: امتحان التركيز</button>
+            <button class="stage-btn endless" onclick="startStage(6)">♾️ الطور اللانهائي (تحدي السكور)</button>
+        </div>
+    </div>
+
+    <!-- Result Overlay -->
+    <div id="result-overlay" class="overlay hidden">
+        <div class="game-title" id="result-title">كفو! عديت المرحلة</div>
+        <div class="game-subtitle" id="result-desc">تركيزك حديد وما انخدعت بالفخاخ!</div>
+        <button class="primary-btn" id="next-stage-btn" onclick="nextStageAction()">المرحلة التالية ⬅️</button>
+        <button class="secondary-btn" onclick="retryStage()">إعادة المحاولة 🔄</button>
+        <button class="secondary-btn" onclick="showMainMenu()">القائمة الرئيسية 🏠</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const wrapper = document.getElementById('game-wrapper');
+    const tauntBox = document.getElementById('taunt-box');
+
+    // Audio Synthesizer (No external files needed)
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function playTone(freq, type = 'sine', duration = 0.12, vol = 0.15) {
+        try {
+            if (!audioCtx) audioCtx = new AudioCtx();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        } catch (e) {}
+    }
+
+    function sfxHit() {
+        playTone(520, 'triangle', 0.1, 0.2);
+        setTimeout(() => playTone(780, 'sine', 0.12, 0.15), 40);
+    }
+    function sfxFakePop() {
+        playTone(300, 'sawtooth', 0.09, 0.12);
+    }
+    function sfxSwitch() {
+        playTone(440, 'sine', 0.08, 0.15);
+        setTimeout(() => playTone(660, 'sine', 0.09, 0.15), 45);
+    }
+    function sfxFail() {
+        playTone(160, 'sawtooth', 0.25, 0.25);
+        setTimeout(() => playTone(115, 'sawtooth', 0.3, 0.25), 100);
+    }
+
+    // Stages Configuration
+    const STAGES = {
+        1: { name: "1", target: 12, speed: 4.0, spawnMs: 1050, probs: { normal: 0.62, fake: 0.38, switch: 0.0, brake: 0.0 } },
+        2: { name: "2", target: 16, speed: 4.5, spawnMs: 920,  probs: { normal: 0.45, fake: 0.25, switch: 0.30, brake: 0.0 } },
+        3: { name: "3", target: 20, speed: 5.0, spawnMs: 840,  probs: { normal: 0.40, fake: 0.25, switch: 0.20, brake: 0.15 } },
+        4: { name: "4", target: 25, speed: 5.7, spawnMs: 740,  probs: { normal: 0.35, fake: 0.30, switch: 0.20, brake: 0.15 } },
+        5: { name: "5", target: 30, speed: 6.4, spawnMs: 650,  probs: { normal: 0.30, fake: 0.32, switch: 0.23, brake: 0.15 } },
+        6: { name: "♾️", target: 9999, speed: 5.2, spawnMs: 780, probs: { normal: 0.36, fake: 0.28, switch: 0.22, brake: 0.14 }, endless: true }
+    };
+
+    const TAUNTS_FAKE = [
+        "أكلت المقلب! 😂",
+        "مكتوب FAKE ليش ضغطت؟ 😭",
+        "إصبعك أسرع من عقلك! ⚡",
+        "هدي أعصابك لا تستعجل! 🤡",
+        "بلعت الفخ بنجاح! 🪤"
+    ];
+
+    const TAUNTS_MISS = [
+        "راحت عليك الكرة! 💨",
+        "وين صافن؟ ركز! 👀",
+        "الزر التاني يا بطل! ↪️"
+    ];
+
+    let currentStageNum = 1;
+    let score = 0;
+    let hearts = 3;
+    let gameActive = false;
+    let balls = [];
+    let effects = [];
+    let lastSpawnTime = 0;
+    let hitLineY = 0;
+    let laneCenters = [0, 0, 0, 0];
+
+    function resizeCanvas() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+        hitLineY = canvas.height - 52;
+        const laneW = canvas.width / 4;
+        for (let i = 0; i < 4; i++) {
+            laneCenters[i] = laneW * i + laneW / 2;
+        }
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function showTaunt(text, isGood = false) {
+        tauntBox.textContent = text;
+        tauntBox.className = isGood ? 'show good' : 'show';
+        clearTimeout(tauntBox.timer);
+        tauntBox.timer = setTimeout(() => {
+            tauntBox.className = '';
+        }, 900);
+    }
+
+    function updateHUD() {
+        const st = STAGES[currentStageNum];
+        document.getElementById('hud-stage').textContent = st.name;
+        document.getElementById('hud-score').textContent = st.endless ? `${score}` : `${score} / ${st.target}`;
+        document.getElementById('hearts-container').textContent = '❤️'.repeat(Math.max(0, hearts)) + '🖤'.repeat(Math.max(0, 3 - hearts));
+        const pct = st.endless ? 100 : Math.min(100, (score / st.target) * 100);
+        document.getElementById('progress-bar-fill').style.width = pct + '%';
+    }
+
+    function pickBallType(probs) {
+        const r = Math.random();
+        if (r < probs.normal) return 'normal';
+        if (r < probs.normal + probs.fake) return 'fake';
+        if (r < probs.normal + probs.fake + probs.switch) return 'switch';
+        return 'brake';
+    }
+
+    function spawnBall() {
+        const st = STAGES[currentStageNum];
+        const lane = Math.floor(Math.random() * 4);
+        const type = pickBallType(st.probs);
+
+        let targetLane = lane;
+        if (type === 'switch') {
+            if (lane === 0) targetLane = 1;
+            else if (lane === 3) targetLane = 2;
+            else targetLane = Math.random() < 0.5 ? lane - 1 : lane + 1;
+        }
+
+        // Dynamic speed increase in endless mode
+        const speedBoost = st.endless ? Math.min(3.0, Math.floor(score / 10) * 0.25) : 0;
+
+        balls.push({
+            lane: lane,
+            targetLane: targetLane,
+            x: laneCenters[lane],
+            y: -25,
+            radius: 21,
+            type: type, // 'normal' | 'fake' | 'switch' | 'brake'
+            speed: st.speed + speedBoost,
+            state: 'falling', // 'falling' | 'faked' | 'switched' | 'braking' | 'caught'
+            triggerY: hitLineY - (115 + Math.random() * 35),
+            brakeUntil: 0,
+            alpha: 1
+        });
+    }
+
+    function addEffect(x, y, text, color) {
+        effects.push({ x, y, text, color, alpha: 1, dy: -1.8 });
+    }
+
+    function damagePlayer(reasonText) {
+        sfxFail();
+        hearts--;
+        updateHUD();
+        showTaunt(reasonText, false);
+        wrapper.classList.remove('shake');
+        void wrapper.offsetWidth;
+        wrapper.classList.add('shake');
+
+        if (hearts <= 0) {
+            endGame(false);
+        }
+    }
+
+    function addScore(pts, x, y, label = "+1") {
+        score += pts;
+        updateHUD();
+        addEffect(x, y, label, '#38bdf8');
+
+        const st = STAGES[currentStageNum];
+        if (!st.endless && score >= st.target) {
+            endGame(true);
+        }
+    }
+
+    function handleLanePress(laneIdx) {
+        if (!gameActive) return;
+
+        const btn = document.getElementById(`btn-${laneIdx}`);
+        btn.classList.add('active');
+        setTimeout(() => btn.classList.remove('active'), 100);
+
+        // 1) Check if player fell for a FAKE ball in this lane
+        const fakeBall = balls.find(b => b.lane === laneIdx && b.state === 'faked' && Math.abs(b.y - hitLineY) < 120);
+        if (fakeBall) {
+            fakeBall.state = 'done';
+            const msg = TAUNTS_FAKE[Math.floor(Math.random() * TAUNTS_FAKE.length)];
+            addEffect(laneCenters[laneIdx], hitLineY - 20, "بلعت الفيك! ❌", "#ef4444");
+            damagePlayer(msg);
+            return;
+        }
+
+        // 2) Check for catchable real ball near the hit line
+        const catchable = balls.find(b =>
+            b.lane === laneIdx &&
+            b.type !== 'fake' &&
+            b.state !== 'caught' &&
+            Math.abs(b.y - hitLineY) <= 58
+        );
+
+        if (catchable) {
+            catchable.state = 'caught';
+            sfxHit();
+            addScore(1, catchable.x, hitLineY - 20, "ممتاز! +1");
+            return;
+        }
+
+        // 3) Check if player pressed way too early on a braking ball or empty lane
+        const earlyBall = balls.find(b => b.lane === laneIdx && b.y > hitLineY - 190 && b.y < hitLineY - 58);
+        if (earlyBall) {
+            if (earlyBall.type === 'fake') {
+                earlyBall.state = 'done';
+                damagePlayer("مستعجل عالـ FAKE! 😂");
+            } else if (earlyBall.type === 'brake') {
+                earlyBall.state = 'caught';
+                damagePlayer("انخدعت بالفرامل وضغطت بكير! 🛑");
+            } else {
+                earlyBall.state = 'caught';
+                damagePlayer("ضغطت بكير كتير! ⏳");
+            }
+        } else {
+            // Pressed completely empty lane
+            damagePlayer("ما في كرة هون! تسرعت 💨");
+        }
+    }
+
+    // Bind Mouse / Touch Events
+    document.querySelectorAll('.catch-btn').forEach(btn => {
+        const lane = parseInt(btn.getAttribute('data-lane'));
+        btn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            handleLanePress(lane);
+        });
+    });
+
+    // Bind Keyboard Events
+    window.addEventListener('keydown', (e) => {
+        if (e.repeat) return;
+        const key = e.key.toLowerCase();
+        if (key === 'd' || key === '1') handleLanePress(0);
+        if (key === 'f' || key === '2') handleLanePress(1);
+        if (key === 'j' || key === '3') handleLanePress(2);
+        if (key === 'k' || key === '4') handleLanePress(3);
+    });
+
+    function updateGame(timestamp) {
+        if (!gameActive) return;
+
+        const st = STAGES[currentStageNum];
+        const dynamicSpawn = st.endless ? Math.max(430, st.spawnMs - score * 4) : st.spawnMs;
+
+        if (timestamp - lastSpawnTime > dynamicSpawn) {
+            spawnBall();
+            lastSpawnTime = timestamp;
+        }
+
+        // Clear button fake warning highlights
+        for (let i = 0; i < 4; i++) {
+            document.getElementById(`btn-${i}`).classList.remove('fake-warn');
+        }
+
+        for (let i = balls.length - 1; i >= 0; i--) {
+            const b = balls[i];
+
+            if (b.state === 'caught' || b.state === 'done') {
+                balls.splice(i, 1);
+                continue;
+            }
+
+            // Trigger special trick when reaching triggerY
+            if (b.state === 'falling' && b.y >= b.triggerY) {
+                if (b.type === 'fake') {
+                    b.state = 'faked';
+                    sfxFakePop();
+                } else if (b.type === 'switch') {
+                    b.state = 'switched';
+                    b.lane = b.targetLane;
+                    sfxSwitch();
+                    addEffect(b.x, b.y, b.targetLane > b.lane ? "⬅️ غدر!" : "غدر! ➡️", "#c084fc");
+                } else if (b.type === 'brake') {
+                    b.state = 'braking';
+                    b.brakeUntil = timestamp + 430;
+                    addEffect(b.x, b.y - 20, "فرامل! 🛑", "#f59e0b");
+                }
+            }
+
+            // Movement logic
+            if (b.state === 'braking') {
+                if (timestamp >= b.brakeUntil) {
+                    b.state = 'after_brake';
+                }
+            } else {
+                b.y += b.speed;
+            }
+
+            // Smooth X interpolation for switched balls
+            const targetX = laneCenters[b.lane];
+            b.x += (targetX - b.x) * 0.28;
+
+            // If fake ball is active, highlight button in red so player sees the trap
+            if (b.state === 'faked') {
+                document.getElementById(`btn-${b.lane}`).classList.add('fake-warn');
+                b.alpha -= 0.035;
+                if (b.y > hitLineY + 55) {
+                    // Player successfully resisted pressing!
+                    addScore(2, laneCenters[b.lane], hitLineY - 30, "ما انخدعت! +2 🧠");
+                    showTaunt("وحش! كشفت الفيك 🧠", true);
+                    balls.splice(i, 1);
+                    continue;
+                }
+            } else {
+                // Real ball missed past hitLine
+                if (b.y > hitLineY + 58) {
+                    const msg = TAUNTS_MISS[Math.floor(Math.random() * TAUNTS_MISS.length)];
+                    addEffect(b.x, hitLineY - 15, "فاتتك! ❌", "#ef4444");
+                    damagePlayer(msg);
+                    balls.splice(i, 1);
+                    continue;
+                }
+            }
+        }
+
+        // Update floating text effects
+        for (let i = effects.length - 1; i >= 0; i--) {
+            effects[i].y += effects[i].dy;
+            effects[i].alpha -= 0.025;
+            if (effects[i].alpha <= 0) effects.splice(i, 1);
+        }
+    }
+
+    function drawGame() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw 4 vertical tracks
+        const laneW = canvas.width / 4;
+        for (let i = 0; i < 4; i++) {
+            const x = laneCenters[i];
+
+            // Lane divider line
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(laneW * i, 0);
+            ctx.lineTo(laneW * i, canvas.height);
+            ctx.stroke();
+
+            // Center guide beam
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, hitLineY);
+            ctx.stroke();
+
+            // Target Catch Ring at hitLineY
+            ctx.beginPath();
+            ctx.arc(x, hitLineY, 24, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(x, hitLineY, 6, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+            ctx.fill();
+        }
+
+        // Draw Balls
+        balls.forEach(b => {
+            ctx.save();
+            if (b.state === 'faked') {
+                // Draw FAKE Ghost / Warning text instead of real ball
+                ctx.fillStyle = '#ef4444';
+                ctx.font = '900 22px Cairo';
+                ctx.textAlign = 'center';
+                ctx.fillText('FAKE! فيك', b.x, b.y);
+
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.arc(b.x, b.y - 8, b.radius, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Draw X inside target ring
+                ctx.fillStyle = '#ef4444';
+                ctx.font = '900 18px Cairo';
+                ctx.fillText('لا تضغط!', laneCenters[b.lane], hitLineY + 6);
+            } else {
+                // Subtle pro visual tell right before trigger
+                const nearTrigger = (b.type === 'fake' && b.triggerY - b.y < 38 && b.triggerY - b.y > 0);
+                const jitterX = nearTrigger ? (Math.random() - 0.5) * 4 : 0;
+
+                let color = '#38bdf8'; // Default looks normal to trick the player!
+                if (b.state === 'switched') color = '#a855f7';
+                if (b.state === 'braking' || b.state === 'after_brake') color = '#f59e0b';
+
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 16;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(b.x + jitterX, b.y, b.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Inner shine
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                ctx.beginPath();
+                ctx.arc(b.x - 6 + jitterX, b.y - 6, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        });
+
+        // Draw Floating Effects
+        effects.forEach(ef => {
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, ef.alpha);
+            ctx.fillStyle = ef.color;
+            ctx.font = '900 16px Cairo';
+            ctx.textAlign = 'center';
+            ctx.fillText(ef.text, ef.x, ef.y);
+            ctx.restore();
+        });
+    }
+
+    function gameLoop(timestamp) {
+        updateGame(timestamp);
+        drawGame();
+        requestAnimationFrame(gameLoop);
+    }
+    requestAnimationFrame(gameLoop);
+
+    // Game Flow Functions
+    function startStage(stageNum) {
+        resizeCanvas();
+        currentStageNum = stageNum;
+        score = 0;
+        const rageMode = document.getElementById('rage-mode-check').checked;
+        hearts = rageMode ? 1 : 3;
+        balls = [];
+        effects = [];
+        lastSpawnTime = performance.now();
+        gameActive = true;
+
+        document.getElementById('menu-overlay').classList.add('hidden');
+        document.getElementById('result-overlay').classList.add('hidden');
+        updateHUD();
+    }
+
+    function endGame(won) {
+        gameActive = false;
+        const resOverlay = document.getElementById('result-overlay');
+        const title = document.getElementById('result-title');
+        const desc = document.getElementById('result-desc');
+        const nextBtn = document.getElementById('next-stage-btn');
+
+        resOverlay.classList.remove('hidden');
+
+        if (won) {
+            title.textContent = `كفو! ختمت المرحلة ${currentStageNum} 🔥`;
+            desc.textContent = "ردة فعلك أسطورية وما بلعت مقالب الـ FAKE!";
+            if (currentStageNum < 5) {
+                nextBtn.classList.remove('hidden');
+                nextBtn.textContent = `المرحلة ${currentStageNum + 1} ⬅️`;
+            } else {
+                nextBtn.classList.remove('hidden');
+                nextBtn.textContent = `جرب الطور اللانهائي ♾️`;
+            }
+        } else {
+            title.textContent = STAGES[currentStageNum].endless ? `انتهت الجولة! سكورك: ${score}` : "خسرت! غدروك الكرات 💔";
+            desc.textContent = "ركز عالكرات اللي بترجف قبل الخط ولا تستعجل بالضغط!";
+            nextBtn.classList.add('hidden');
+        }
+    }
+
+    function nextStageAction() {
+        if (currentStageNum < 5) {
+            startStage(currentStageNum + 1);
+        } else {
+            startStage(6);
+        }
+    }
+
+    function retryStage() {
+        startStage(currentStageNum);
+    }
+
+    function showMainMenu() {
+        gameActive = false;
+        document.getElementById('result-overlay').classList.add('hidden');
+        document.getElementById('menu-overlay').classList.remove('hidden');
+    }
+</script>
+
+</body>
+</html>
